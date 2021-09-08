@@ -6,14 +6,74 @@
         this.gameOver = false;
         this.bars = [];
         this.ball = null;
+
     }
 
     self.Board.prototype = {
+
         get elements(){
 
-            var elements = this.bars;
+            var elements = this.bars.map(function(bar) { return bar; });
             elements.push(this.ball);
             return elements;
+        }
+    }
+})();
+
+(function(){
+
+    self.Ball = function(x,y,radius,board) {
+        
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.speed_y = 0;
+        this.speed_x = 3;
+        this.board = board;
+        this.kind = "circle";
+        this.direction = 1;
+        this.bounce_angle = 0;
+        this.max_bounce_angle = Math.PI / 12;
+        this.speed = 3;
+
+        board.ball = this;
+
+    }
+
+    self.Ball.prototype = {
+
+        move: function() {
+            
+            this.x += (this.speed_x * this.direction);
+            this.y += (this.speed_y);
+        },
+
+        get width(){
+
+            return this.radius * 2;
+
+        },
+
+        get height(){
+
+            return this.radius * 2;
+            
+        },
+        collision: function (bar) {
+            
+            //reacciona a la colisión de una barra que recibe como parámetro
+            //Reacciona a la colisiona con una barra que recibe como parametro  
+            var relative_intersect_y = ( bar.y + (bar.height / 2) ) - this.y;
+
+            var normalized_intersect_y = relative_intersect_y / (bar.height / 2);
+
+            this.bounce_angle = normalized_intersect_y * this.max_bounce_angle;
+
+            this.speed_y = this.speed * -Math.sin(this.bounce_angle);
+            this.speed_x = this.speed * Math.cos(this.bounce_angle);
+
+            if (this.x > (this.board.width / 2)) this.direction = -1;
+            else this.direction = 1;
         }
     }
 })();
@@ -29,16 +89,23 @@
         this.board = board;
         this.board.bars.push(this); 
         this.kind = "rectangle";
+        this.speed = 10;
     }
 
     self.Bar.prototype = {
 
         down: function(){
             
+            this.y += this.speed;
         },
     
         up: function () {
             
+            this.y -= this.speed;
+        },
+        toString: function(){
+
+            return "x: " + this.x + " y: " + this.y;
         }
         
     }
@@ -56,6 +123,11 @@
     }
 
     self.BoardView.prototype = {
+
+        clean: function(){
+            this.contexto.clearRect(0,0,this.board.width,this.board.height);
+        },
+
         draw: function(){
             
             for (let index = this.board.elements.length - 1; index >= 0; index--) {
@@ -64,37 +136,143 @@
 
                 draw(this.contexto,el);
             };
+        },
+
+        check_collisions: function () {
+        
+            for (var index = this.board.bars.length -1; index >= 0; index--) {
+                
+                var bar = this.board.bars[index];
+                
+                if(hit(bar, this.board.ball)){
+                    
+                    this.board.ball.collision(bar);
+                }
+            }
+        },
+
+        play: function() {
+            
+            if(this.board.isPlaying){
+
+                this.clean();
+                this.draw();
+                this.check_collisions();
+                this.board.ball.move();
+            }
         }
     }
 
-    function draw(contexto,element) {
+    function hit(a,b) {
 
-        if (element !== null && element.hasOwnProperty("kind")) {
-            
-            switch (element.kind) {
-                case "rectangle":
-                    
-                    contexto.fillRect(element.x,element.y,element.width,element.height);
-                    break;
-            
-                default:
-                    break;
-            }
+        //Revisa si a colisiona con b
+        var hit = false;
+        
+        //Colisiones hirizontales
+        if(b.x + b.width >= a.x && b.x < a.x + a.width){
 
+            //Colisiona verticales
+        if (b.y + b.height >= a.y && b.y < a.y + a.height) 
+            hit = true;
         }
+
+        
+        //Colisión de a con b
+        if(b.x <= a.x && b.x + b.width >= a.x + a.width){
+
+            if (b.y <= a.y && b.y + b.height >= a.y + a.height) 
+                hit = true;
+        }
+
+        
+        //Colision b con a
+        if(a.x <= b.x && a.x + a.width >= b.x + b.width){
+        
+            //Colisiona verticales
+            if (a.y <= b.y && a.y + a.height >= b.y + b.height) 
+                hit = true;
+        }
+
+        return hit;
+        
+    }
+
+    function draw(contexto,element) {
+            
+        switch (element.kind) {
+            case "rectangle":
+                
+                contexto.fillRect(element.x,element.y,element.width,element.height);
+                break;
+
+            case "circle":
+
+                contexto.beginPath();
+                contexto.arc(element.x,element.y,element.radius,0,7);
+                contexto.fill();
+                contexto.closePath();
+
+                break;
+        
+            default:
+                break;
+        }
+
     }
 
 })();
 
-window.addEventListener("load", main);
-
-function main() {
-    
     var board = new Board(800, 400);
-    var bar = new Bar(20,150,10,100,board);
-    var bar2 = new Bar(770,150,10,100,board);
+    var bar_Payer1 = new Bar(20,150,10,100,board);
+    var bar_Payer2 = new Bar(770,150,10,100,board);
     var canvas = document.getElementById('canvas');
     var board_view = new BoardView(canvas,board);
+    var ball = new Ball(350, 100, 10,board);
 
-    board_view.draw();
+
+//Funciones de las teclas
+document.addEventListener("keydown", function(event) {
+
+    //Comandos primer jugador
+    if (event.code == "ArrowDown") {
+        
+        event.preventDefault();
+        bar_Payer2.down();
+        
+    }else if(event.code == "ArrowUp"){
+
+        event.preventDefault();
+        bar_Payer2.up();
+    }
+
+    //Comandos segundo jugador
+    if (event.code == "KeyS") {
+        
+        event.preventDefault();
+        bar_Payer1.down();
+        
+    }else if(event.code == "KeyW"){
+        
+        event.preventDefault();
+        bar_Payer1.up();
+        
+    }
+    
+    //Pausar el juego
+    if(event.code == "Space"){
+        
+        event.preventDefault();
+        board.isPlaying = !board.isPlaying;
+    }
+
+});
+
+//Ejecución del juego
+board_view.draw();
+window.requestAnimationFrame(controller);
+
+function controller() {
+
+    board_view.play();
+    window.requestAnimationFrame(controller);
 }
